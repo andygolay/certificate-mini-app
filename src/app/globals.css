@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* Base resets */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Helvetica", "Arial", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Printable certificate: landscape 8.5 x 11 */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .certificate-print-root,
+  .certificate-print-root * {
+    visibility: visible;
+  }
+  .certificate-print-root {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 11in;
+    height: 8.5in;
+    margin: 0;
+    padding: 0;
+    background: #fefefe;
+    box-shadow: none;
+    border: none;
+    overflow: hidden;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+@page {
+  size: 11in 8.5in landscape;
+  margin: 0.5in;
+}

@@ -1,0 +1,9 @@
+[package]
+name = "certificates"
+version = "0.0.1"
+
+[addresses]
+certificates = "_"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "m1" }
