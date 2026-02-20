@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "html-to-image": "^1.11.11",
     "@movement-labs/miniapp-sdk": "github:MoveIndustries/mini-app-sdk",
     "@tailwindcss/postcss": "^4.1.14",
     "next": "^15.5.4",

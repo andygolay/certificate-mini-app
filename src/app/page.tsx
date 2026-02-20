@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toBlob } from "html-to-image";
 import { useMovementSDK } from "@movement-labs/miniapp-sdk";
 import { CERTIFICATES_MODULE_ADDRESS } from "../../constants";
 
@@ -22,6 +23,17 @@ function getCertificateShareMessage(p: PrintCert): string {
   return `Certificate of Achievement for ${p.cert.studentName}${p.templateName ? ` · ${p.templateName}` : ""}. To claim: use issuer ${p.issuer} and index ${p.index}.`;
 }
 
+async function captureCertificateAsPng(element: HTMLElement): Promise<Blob> {
+  const blob = await toBlob(element, {
+    cacheBust: true,
+    pixelRatio: 2,
+    backgroundColor: "#faf8f0",
+    style: { margin: "0" },
+  });
+  if (!blob) throw new Error("Failed to capture certificate image");
+  return blob;
+}
+
 function unwrapView<T>(result: unknown): T {
   const arr = Array.isArray(result) ? result : [result];
   return (arr.length === 1 ? arr[0] : arr) as T;
@@ -39,6 +51,7 @@ export default function CertificatesPage() {
   const [lastIssued, setLastIssued] = useState<{ index: number; recipientName: string } | null>(null);
   const [printCert, setPrintCert] = useState<PrintCert | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const certificateRef = useRef<HTMLDivElement>(null);
 
   // Create template form
   const [templateName, setTemplateName] = useState("");
@@ -611,44 +624,33 @@ export default function CertificatesPage() {
 
             {/* Certificate print view (graduation style, landscape 8.5x11) */}
             {printCert && (
-              <div className="fixed inset-0 z-50 flex flex-col bg-black/60 p-3 print:bg-white print:p-0">
+              <div className="fixed inset-0 z-50 flex max-w-[100vw] flex-col overflow-x-hidden bg-black/60 p-3 print:bg-white print:p-0">
                 {/* Button bar above certificate */}
                 <div className="mb-3 flex flex-shrink-0 justify-center gap-2">
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!sdk?.share) return;
-                      const msg = getCertificateShareMessage(printCert);
-                      const url = typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
-                      await sdk.share({ message: msg, url, title: "Certificate" });
+                      if (!certificateRef.current) return;
+                      try {
+                        const blob = await captureCertificateAsPng(certificateRef.current);
+                        const file = new File([blob], "certificate.png", { type: "image/png" });
+                        if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
+                          await navigator.share({
+                            files: [file],
+                            title: "Certificate of Achievement",
+                            text: getCertificateShareMessage(printCert),
+                          });
+                        } else if (sdk?.share) {
+                          const url = typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
+                          await sdk.share({ message: getCertificateShareMessage(printCert), url, title: "Certificate" });
+                        }
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : "Share failed");
+                      }
                     }}
                     className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800"
                   >
                     Share
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const msg = getCertificateShareMessage(printCert);
-                      try {
-                        if (sdk?.Clipboard?.writeText) {
-                          await sdk.Clipboard.writeText(msg);
-                        } else if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-                          await navigator.clipboard.writeText(msg);
-                        } else {
-                          setError("Clipboard not available");
-                          return;
-                        }
-                        setCopyFeedback(true);
-                        setTimeout(() => setCopyFeedback(false), 2000);
-                        await sdk?.notify?.({ title: "Copied", body: "Certificate details copied to clipboard" });
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : "Copy failed");
-                      }
-                    }}
-                    className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-                  >
-                    {copyFeedback ? "Copied!" : "Copy"}
                   </button>
                   <button
                     type="button"
@@ -658,18 +660,18 @@ export default function CertificatesPage() {
                     Close
                   </button>
                 </div>
-                {/* Certificate frame - fits viewport, no cutoff */}
-                <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-1">
+                {/* Certificate frame - strictly inside viewport, never cut off on right */}
+                <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-auto overflow-x-hidden p-2">
                   <div
-                    className="certificate-print-root relative flex w-full flex-col overflow-hidden rounded-lg bg-[#faf8f0] shadow-2xl print:max-w-none print:rounded-none print:shadow-none"
+                    ref={certificateRef}
+                    className="certificate-print-root relative flex max-h-full w-full max-w-full flex-col overflow-hidden rounded-lg bg-[#faf8f0] shadow-2xl print:max-w-none print:rounded-none print:shadow-none box-border"
                     style={{
-                      // Fit in viewport: limit width so that aspect-ratio height doesn't exceed available height
-                      width: "100%",
-                      maxWidth: "min(calc(100vw - 1.5rem), calc((100vh - 5rem) * 11 / 8.5))",
                       aspectRatio: "11 / 8.5",
-                      maxHeight: "calc(100vh - 5rem)",
+                      width: "100%",
+                      maxWidth: "min(100%, calc((100vh - 8rem) * 11 / 8.5))",
                       border: "8px solid #b8860b",
                       boxShadow: "inset 0 0 0 3px #8b6914",
+                      flexShrink: 0,
                     }}
                   >
                     <div className="absolute left-4 top-4 text-amber-800/25 text-2xl sm:left-6 sm:top-6 sm:text-3xl">◆</div>
